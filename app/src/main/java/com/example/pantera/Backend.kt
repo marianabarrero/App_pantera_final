@@ -21,28 +21,27 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.tasks.await
 import java.io.PrintWriter
-import java.net.*
+import java.net.* //Comunicacion de red TCP UDP
 import java.text.SimpleDateFormat
 import java.util.*
 
 object Constants {
-    const val SERVER_IP_1 = "186.119.50.121"
-    const val SERVER_IP_2 = "186.119.50.121"
-    const val TCP_PORT = 6000
-    const val UDP_PORT = 6001
-    const val LOCATION_UPDATE_INTERVAL = 8000L
+    const val SERVER_IP_1 = "186.98.221.117" //IP Juan
+    const val SERVER_IP_2 = "casaderoger.ddns.net" //IP Roger
+    const val TCP_PORT = 5000
+    const val UDP_PORT = 5001
+    const val LOCATION_UPDATE_INTERVAL = 8000L //Intervalos para solicitar actualizaciones de ubicacion
     const val LOCATION_FASTEST_INTERVAL = 8000L
-    const val LOCATION_TIMEOUT = 5000L
+    const val LOCATION_TIMEOUT = 5000L //Tiempo maximo de espera para obtener una ubicacion actual
     const val NETWORK_TIMEOUT = 5000
-    const val MAX_RETRY_ATTEMPTS = 3
     const val RETRY_DELAY = 1000L
-    const val NOTIFICATION_CHANNEL_ID = "JulsLocationChannel"
-    const val NOTIFICATION_CHANNEL_NAME = "Juls Location Service"
+    const val NOTIFICATION_CHANNEL_ID = "PanteraLocationChannel"
+    const val NOTIFICATION_CHANNEL_NAME = "Pantera Location Service"
     const val NOTIFICATION_ID = 1001
 
     val REQUIRED_PERMISSIONS = arrayOf(
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_COARSE_LOCATION
+        Manifest.permission.ACCESS_FINE_LOCATION, //Obtener una ubicacion mas precisa posible
+        Manifest.permission.ACCESS_COARSE_LOCATION //Obtener una ubicacion aproximada del dispositivo
     )
 
     val BACKGROUND_PERMISSIONS = arrayOf(
@@ -67,11 +66,11 @@ object Constants {
     }
 
     object Logs {
-        const val TAG_MAIN = "Juls_Main"
-        const val TAG_LOCATION = "Juls_Location"
-        const val TAG_NETWORK = "Juls_Network"
-        const val TAG_SERVICE = "Juls_Service"
-        const val TAG_CONTROLLER = "Juls_Controller"
+        const val TAG_MAIN = "Pantera_Main"
+        const val TAG_LOCATION = "Pantera_Location"
+        const val TAG_NETWORK = "Pantera_Network"
+        const val TAG_SERVICE = "Pantera_Service"
+        const val TAG_CONTROLLER = "Pantera_Controller"
     }
 }
 
@@ -586,7 +585,7 @@ class Backend(private val context: Context) : ViewModel() {
 
             updateAppState { it.startTracking() }
             startLocationProcessingJob()
-            testServerConnections()
+
 
             startLocationService()
 
@@ -1073,46 +1072,6 @@ class Backend(private val context: Context) : ViewModel() {
             }
         }
     }
-
-    suspend fun testServerConnections(): Result<String> {
-        Log.d(TAG, "Testing server connections...")
-
-        return try {
-            val testLocation = LocationData.createTestLocation()
-            val serverStatus = sendLocationToAllServers(testLocation)
-
-            serverStatus.fold(
-                onSuccess = { status ->
-                    val activeConnections = status.getActiveConnectionsCount()
-                    val message = when {
-                        activeConnections == 4 -> "All servers connected (4/4)"
-                        activeConnections > 0 -> "Partial connectivity ($activeConnections/4 servers)"
-                        else -> "No server connections available"
-                    }
-
-                    if (activeConnections > 0) {
-                        updateAppState { it.showSuccessMessage(message) }
-                        Result.success(message)
-                    } else {
-                        updateAppState { it.showErrorMessage(message) }
-                        Result.failure(Exception("No server connections"))
-                    }
-                },
-                onFailure = { error ->
-                    val errorMessage = "Connection test failed: ${error.message}"
-                    updateAppState { it.showErrorMessage(errorMessage) }
-                    Result.failure(error)
-                }
-            )
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error testing server connections", e)
-            val errorMessage = "Connection test failed: ${e.message}"
-            updateAppState { it.showErrorMessage(errorMessage) }
-            Result.failure(e)
-        }
-    }
-
     suspend fun sendTestData(): Result<String> {
         Log.d(TAG, "Sending test data to servers...")
 
@@ -1227,7 +1186,6 @@ class Backend(private val context: Context) : ViewModel() {
 
         viewModelScope.launch {
             if (appState.value.isTrackingEnabled) {
-                testServerConnections()
             }
         }
     }
@@ -1241,7 +1199,6 @@ class Backend(private val context: Context) : ViewModel() {
 
         if (isConnected && appState.value.isTrackingEnabled) {
             viewModelScope.launch {
-                testServerConnections()
                 flushPendingLocations()
             }
         }

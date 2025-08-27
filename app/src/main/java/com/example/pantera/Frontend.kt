@@ -45,14 +45,15 @@ import androidx.core.view.WindowCompat
 import android.app.Activity
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 val Lightest = Color(0xFFF8FAFC)
 val LightBlueGray = Color(0xFF64748B)
-val MediumBlue = Color(0xFF1E40AF)
-val DarkBlue = Color(0xFF1E3A8A)
+val MediumBlue = Color(0xFFB595DE)
+val DarkBlue = Color(0xFF856BB4)
 val Darkest = Color(0xFF0F172A)
 
 val Primary = MediumBlue
@@ -73,10 +74,10 @@ val OnSurface = Darkest
 val SurfaceVariant = Color(0xFFF8FAFC)
 val OnSurfaceVariant = LightBlueGray
 
-val Error = Color(0xFFDC2626)
+val Error = Color(0xFF856BB4)
 val ErrorContainer = Color(0xFFFEE2E2)
 val OnError = Color(0xFFFFFFFF)
-val OnErrorContainer = Color(0xFF7F1D1D)
+val OnErrorContainer = Color(0xFF1E40AF)
 
 val Outline = Color(0xFFE2E8F0)
 val OutlineVariant = Color(0xFFF1F5F9)
@@ -393,7 +394,7 @@ private fun HeaderSection() {
         ) {
             Image(
                 painter = painterResource(
-                    id = R.drawable.logo_light),
+                    id = R.drawable.logo_pantera),
                 contentDescription = "Pantera",
                 modifier = Modifier.size(200.dp) // Size of the logo.
             )
@@ -413,7 +414,8 @@ private fun HeaderSection() {
         Text(
             text = "Planning and Navigation Technology  Enhancing Route Analysis",
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center, // Centra el texto
         )
     }
 }
@@ -426,11 +428,6 @@ private fun LocationCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(24.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        shape = RoundedCornerShape(24.dp)
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
@@ -468,7 +465,7 @@ private fun LocationCard(
                         imageVector = Icons.Default.LocationOn,
                         contentDescription = null,
                         modifier = Modifier.size(28.dp),
-                        tint = Color.White
+                        tint = MediumBlue
                     )
                 }
 
@@ -483,14 +480,6 @@ private fun LocationCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    Text(
-                        text = if (appState.isTrackingEnabled)
-                            "Sending every 8 seconds"
-                        else
-                            "Ready to track",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
 
                 if (!appState.isTrackingEnabled) {
@@ -812,18 +801,10 @@ private fun TrackingButton(
                 MaterialTheme.colorScheme.primary,
             contentColor = Color.White
         ),
-        shape = RoundedCornerShape(20.dp)
     ) {
-        Icon(
-            imageVector = if (isTracking) Icons.Default.Stop else Icons.Default.PlayArrow,
-            contentDescription = null,
-            modifier = Modifier.size(28.dp)
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
 
         Text(
-            text = if (isTracking) "Stop Tracking" else "Start Tracking",
+            text = if (isTracking) "Stop" else "Start",
             style = MaterialTheme.typography.titleLarge.copy(
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp
