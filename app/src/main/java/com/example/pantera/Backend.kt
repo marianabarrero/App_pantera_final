@@ -26,8 +26,10 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 object Constants {
-    const val SERVER_IP_1 = "186.98.221.117" //IP Juan
-    const val SERVER_IP_2 = "casaderoger.ddns.net" //IP Roger
+    const val SERVER_IP_1 = "54.237.59.176" //IP Nana
+    const val SERVER_IP_2 = "3.143.250.57" //IP Juls
+    const val SERVER_IP_3 = "54.227.169.166" // IP samir
+    const val SERVER_IP_4 = "34.197.224.243" // IP roger
     const val TCP_PORT = 5000
     const val UDP_PORT = 5001
     const val LOCATION_UPDATE_INTERVAL = 8000L //Intervalos para solicitar actualizaciones de ubicacion
@@ -135,19 +137,6 @@ data class LocationData(
         jsonBuilder.append("\"lon\":$longitude,")
         jsonBuilder.append("\"time\":$timestamp")
 
-        accuracy?.let {
-            jsonBuilder.append(",\"acc\":$it")
-        }
-        altitude?.let {
-            jsonBuilder.append(",\"alt\":$it")
-        }
-        speed?.let {
-            jsonBuilder.append(",\"spd\":$it")
-        }
-        provider?.let {
-            jsonBuilder.append(",\"prov\":\"$it\"")
-        }
-
         jsonBuilder.append("}")
         return jsonBuilder.toString()
     }
@@ -232,6 +221,10 @@ data class ServerStatus(
     val server1UDP: ConnectionStatus = ConnectionStatus.DISCONNECTED,
     val server2TCP: ConnectionStatus = ConnectionStatus.DISCONNECTED,
     val server2UDP: ConnectionStatus = ConnectionStatus.DISCONNECTED,
+    val server3TCP: ConnectionStatus = ConnectionStatus.DISCONNECTED,
+    val server3UDP: ConnectionStatus = ConnectionStatus.DISCONNECTED,
+    val server4TCP: ConnectionStatus = ConnectionStatus.DISCONNECTED,
+    val server4UDP: ConnectionStatus = ConnectionStatus.DISCONNECTED,
     val lastUpdateTime: Long = 0L,
     val lastSuccessfulSend: Long = 0L,
     val totalSentMessages: Int = 0,
@@ -249,14 +242,24 @@ data class ServerStatus(
         return server1TCP == ConnectionStatus.CONNECTED ||
                 server1UDP == ConnectionStatus.CONNECTED ||
                 server2TCP == ConnectionStatus.CONNECTED ||
-                server2UDP == ConnectionStatus.CONNECTED
+                server2UDP == ConnectionStatus.CONNECTED ||
+                server3TCP == ConnectionStatus.CONNECTED ||
+                server3UDP == ConnectionStatus.CONNECTED ||
+                server4TCP == ConnectionStatus.CONNECTED ||
+                server4UDP == ConnectionStatus.CONNECTED
+
     }
 
     fun hasAllConnections(): Boolean {
         return server1TCP == ConnectionStatus.CONNECTED &&
                 server1UDP == ConnectionStatus.CONNECTED &&
                 server2TCP == ConnectionStatus.CONNECTED &&
-                server2UDP == ConnectionStatus.CONNECTED
+                server2UDP == ConnectionStatus.CONNECTED &&
+                server3TCP == ConnectionStatus.CONNECTED &&
+                server3UDP == ConnectionStatus.CONNECTED &&
+                server4TCP == ConnectionStatus.CONNECTED &&
+                server4UDP == ConnectionStatus.CONNECTED
+
     }
 
     fun getActiveConnectionsCount(): Int {
@@ -265,6 +268,10 @@ data class ServerStatus(
         if (server1UDP == ConnectionStatus.CONNECTED) count++
         if (server2TCP == ConnectionStatus.CONNECTED) count++
         if (server2UDP == ConnectionStatus.CONNECTED) count++
+        if (server3TCP == ConnectionStatus.CONNECTED) count++
+        if (server3UDP == ConnectionStatus.CONNECTED) count++
+        if (server4TCP == ConnectionStatus.CONNECTED) count++
+        if (server4UDP == ConnectionStatus.CONNECTED) count++
         return count
     }
 
@@ -287,6 +294,10 @@ data class ServerStatus(
             1 to "UDP" -> copy(server1UDP = status, lastUpdateTime = System.currentTimeMillis())
             2 to "TCP" -> copy(server2TCP = status, lastUpdateTime = System.currentTimeMillis())
             2 to "UDP" -> copy(server2UDP = status, lastUpdateTime = System.currentTimeMillis())
+            3 to "TCP" -> copy(server3TCP = status, lastUpdateTime = System.currentTimeMillis())
+            3 to "UDP" -> copy(server3UDP = status, lastUpdateTime = System.currentTimeMillis())
+            4 to "TCP" -> copy(server4TCP = status, lastUpdateTime = System.currentTimeMillis())
+            4 to "UDP" -> copy(server4UDP = status, lastUpdateTime = System.currentTimeMillis())
             else -> this
         }
     }
@@ -832,21 +843,41 @@ class Backend(private val context: Context) : ViewModel() {
                 val server2UdpDeferred = async {
                     sendToServer(Constants.SERVER_IP_2, Constants.UDP_PORT, jsonData, "UDP")
                 }
+                val server3TcpDeferred = async {
+                    sendToServer(Constants.SERVER_IP_3, Constants.TCP_PORT, jsonData, "TCP")
+                }
+                val server3UdpDeferred = async {
+                    sendToServer(Constants.SERVER_IP_3, Constants.UDP_PORT, jsonData, "UDP")
+                }
+                val server4TcpDeferred = async {
+                    sendToServer(Constants.SERVER_IP_4, Constants.TCP_PORT, jsonData, "TCP")
+                }
+                val server4UdpDeferred = async {
+                    sendToServer(Constants.SERVER_IP_4, Constants.UDP_PORT, jsonData, "UDP")
+                }
 
                 val server1TcpResult = server1TcpDeferred.await()
                 val server1UdpResult = server1UdpDeferred.await()
                 val server2TcpResult = server2TcpDeferred.await()
                 val server2UdpResult = server2UdpDeferred.await()
+                val server3TcpResult = server3TcpDeferred.await()
+                val server3UdpResult = server3UdpDeferred.await()
+                val server4TcpResult = server4TcpDeferred.await()
+                val server4UdpResult = server4UdpDeferred.await()
 
                 val newStatus = currentServerStatus.copy(
                     server1TCP = server1TcpResult,
                     server1UDP = server1UdpResult,
                     server2TCP = server2TcpResult,
                     server2UDP = server2UdpResult,
+                    server3TCP = server3TcpResult,
+                    server3UDP = server3UdpResult,
+                    server4TCP = server4TcpResult,
+                    server4UDP = server4UdpResult,
                     lastUpdateTime = System.currentTimeMillis()
                 )
 
-                val successCount = listOf(server1TcpResult, server1UdpResult, server2TcpResult, server2UdpResult)
+                val successCount = listOf(server1TcpResult, server1UdpResult, server2TcpResult, server2UdpResult, server3TcpResult, server3UdpResult, server4TcpResult, server4UdpResult )
                     .count { it == ServerStatus.ConnectionStatus.CONNECTED }
 
                 val finalStatus = if (successCount > 0) {
