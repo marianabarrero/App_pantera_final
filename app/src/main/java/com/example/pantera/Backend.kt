@@ -1,6 +1,7 @@
 package com.tudominio.smslocation
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -10,6 +11,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
@@ -81,13 +83,14 @@ data class LocationData(
     val longitude: Double,
     val timestamp: Long,
     val systemTimestamp: Long,
+    val deviceId: String, // Identificador único del dispositivo
     val accuracy: Float? = null,
     val altitude: Double? = null,
     val speed: Float? = null,
     val provider: String? = null
 ) {
     companion object {
-        fun fromAndroidLocation(location: Location): LocationData {
+        fun fromAndroidLocation(location: Location, deviceId: String): LocationData {
             val gpsTimestamp = if (location.time > 0) location.time else System.currentTimeMillis()
             val systemTimestamp = System.currentTimeMillis()
 
@@ -96,6 +99,7 @@ data class LocationData(
                 longitude = location.longitude,
                 timestamp = gpsTimestamp,
                 systemTimestamp = systemTimestamp,
+                deviceId = deviceId,
                 accuracy = if (location.hasAccuracy()) location.accuracy else null,
                 altitude = if (location.hasAltitude()) location.altitude else null,
                 speed = if (location.hasSpeed()) location.speed else null,
@@ -103,16 +107,18 @@ data class LocationData(
             )
         }
 
-        fun empty(): LocationData {
+        fun empty(deviceId: String): LocationData {
             return LocationData(
                 latitude = 0.0,
                 longitude = 0.0,
                 timestamp = 0L,
-                systemTimestamp = 0L
+                systemTimestamp = 0L,
+                deviceId = deviceId
             )
         }
 
         fun createTestLocation(
+            deviceId: String,
             lat: Double = 4.123456,
             lon: Double = -74.123456
         ): LocationData {
@@ -122,6 +128,7 @@ data class LocationData(
                 longitude = lon,
                 timestamp = currentTime,
                 systemTimestamp = currentTime,
+                deviceId = deviceId,
                 accuracy = 5.0f,
                 altitude = 2640.0,
                 speed = 0.0f,
@@ -135,8 +142,8 @@ data class LocationData(
         jsonBuilder.append("{")
         jsonBuilder.append("\"lat\":$latitude,")
         jsonBuilder.append("\"lon\":$longitude,")
-        jsonBuilder.append("\"time\":$timestamp")
-
+        jsonBuilder.append("\"time\":$timestamp,")
+        jsonBuilder.append("\"deviceId\":\"$deviceId\"") // Añadir deviceId al JSON
         jsonBuilder.append("}")
         return jsonBuilder.toString()
     }
@@ -487,6 +494,10 @@ class Backend(private val context: Context) : ViewModel() {
         private const val TAG = Constants.Logs.TAG_MAIN
     }
 
+    private val deviceId: String by lazy {
+        getDeviceId(context)
+    }
+
     private val fusedLocationClient: FusedLocationProviderClient by lazy {
         LocationServices.getFusedLocationProviderClient(context)
     }
@@ -510,6 +521,11 @@ class Backend(private val context: Context) : ViewModel() {
     init {
         Log.d(TAG, "Backend initialized")
         checkPermissions()
+    }
+
+    @SuppressLint("HardwareIds")
+    private fun getDeviceId(context: Context): String {
+        return Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
     }
 
     fun checkPermissions() {
@@ -671,7 +687,7 @@ class Backend(private val context: Context) : ViewModel() {
             ).await()
 
             if (location != null) {
-                val locationData = LocationData.fromAndroidLocation(location)
+                val locationData = LocationData.fromAndroidLocation(location, deviceId)
                 if (locationData.isValid()) {
                     updateAppState {
                         it.copy(
@@ -732,7 +748,7 @@ class Backend(private val context: Context) : ViewModel() {
             locationCallback = object : LocationCallback() {
                 override fun onLocationResult(locationResult: LocationResult) {
                     locationResult.lastLocation?.let { location ->
-                        val locationData = LocationData.fromAndroidLocation(location)
+                        val locationData = LocationData.fromAndroidLocation(location, deviceId)
 
                         if (locationData.isValid()) {
                             Log.d(TAG, "New location update received: ${locationData.getFormattedCoordinates()}")
@@ -1111,7 +1127,7 @@ class Backend(private val context: Context) : ViewModel() {
         }
 
         return try {
-            val testLocation = LocationData.createTestLocation()
+            val testLocation = LocationData.createTestLocation(deviceId)
             val result = sendLocationToAllServers(testLocation)
 
             result.fold(
