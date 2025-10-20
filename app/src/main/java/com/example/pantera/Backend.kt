@@ -26,12 +26,12 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 object Constants {
-    const val SERVER_IP_1 = "54.237.59.176" //IP Nana
-    const val SERVER_IP_2 = "3.143.250.57" //IP Juls
-    const val SERVER_IP_3 = "54.227.169.166" // IP samir
-    const val SERVER_IP_4 = "34.197.224.243" // IP roger
+    const val SERVER_IP_1 = "35.173.90.231" //IP Nana
+    const val SERVER_IP_2 = "3.130.62.74" //IP Juls
+    const val SERVER_IP_3 = "54.84.99.30" // IP samir
+    const val SERVER_IP_4 = "98.89.220.57" // IP roger
     const val TCP_PORT = 5000
-    const val UDP_PORT = 5001
+    const val UDP_PORT = 6001
     const val LOCATION_UPDATE_INTERVAL = 8000L //Intervalos para solicitar actualizaciones de ubicacion
     const val LOCATION_FASTEST_INTERVAL = 8000L
     const val LOCATION_TIMEOUT = 5000L //Tiempo maximo de espera para obtener una ubicacion actual
