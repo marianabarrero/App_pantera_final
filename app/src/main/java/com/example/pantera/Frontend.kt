@@ -49,6 +49,12 @@ import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material3.Icon
+
 
 val Lightest = Color(0xFFF8FAFC)
 val LightBlueGray = Color(0xFF64748B)
@@ -332,7 +338,9 @@ fun MainScreen(
             )
 
             Spacer(modifier = Modifier.height(24.dp))
+            CameraButton(backend = backend)
 
+            Spacer(modifier = Modifier.height(24.dp))
             StatusMessages(appState = appState)
 
             Spacer(modifier = Modifier.height(40.dp))
@@ -879,5 +887,48 @@ private fun StatusMessages(
                 )
             }
         }
+    }
+}
+@Composable
+fun CameraButton(backend: Backend) {
+    val context = LocalContext.current
+    var hasCameraPermission by remember { mutableStateOf(false) }
+
+    // Launcher para solicitar permiso
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasCameraPermission = isGranted
+        if (isGranted) {
+            Toast.makeText(context, "Permiso de cámara concedido ✓", Toast.LENGTH_SHORT).show()
+            // Aquí después agregaremos la lógica para abrir la cámara
+        } else {
+            Toast.makeText(context, "Permiso de cámara denegado ✗", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    Button(
+        onClick = {
+            // Solicitar permiso de cámara
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.secondary
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.CameraAlt,
+            contentDescription = "Camera",
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = "Abrir Cámara",
+            style = MaterialTheme.typography.titleMedium
+        )
     }
 }

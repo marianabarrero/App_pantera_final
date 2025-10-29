@@ -23,20 +23,25 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.tasks.await
 import java.io.PrintWriter
-import java.net.* //Comunicacion de red TCP UDP
+import java.net.*
 import java.text.SimpleDateFormat
 import java.util.*
 
 object Constants {
+    // IPs de los servidores
     const val SERVER_IP_1 = "35.173.90.231" //IP Nana
-    const val SERVER_IP_2 = "3.130.62.74" //IP Juls
-    const val SERVER_IP_3 = "54.84.99.30" // IP samir
-    const val SERVER_IP_4 = "98.89.220.57" // IP roger
+    const val SERVER_IP_2 = "3.130.62.74"   //IP Juls
+    const val SERVER_IP_3 = "54.84.99.30"   //IP samir
+    const val SERVER_IP_4 = "98.89.220.57"  //IP roger
+
+    // Puertos
     const val TCP_PORT = 5000
     const val UDP_PORT = 6001
-    const val LOCATION_UPDATE_INTERVAL = 8000L //Intervalos para solicitar actualizaciones de ubicacion
+    const val WEBRTC_PORT = 8080
+
+    const val LOCATION_UPDATE_INTERVAL = 8000L
     const val LOCATION_FASTEST_INTERVAL = 8000L
-    const val LOCATION_TIMEOUT = 5000L //Tiempo maximo de espera para obtener una ubicacion actual
+    const val LOCATION_TIMEOUT = 5000L
     const val NETWORK_TIMEOUT = 5000
     const val RETRY_DELAY = 1000L
     const val NOTIFICATION_CHANNEL_ID = "PanteraLocationChannel"
@@ -44,8 +49,8 @@ object Constants {
     const val NOTIFICATION_ID = 1001
 
     val REQUIRED_PERMISSIONS = arrayOf(
-        Manifest.permission.ACCESS_FINE_LOCATION, //Obtener una ubicacion mas precisa posible
-        Manifest.permission.ACCESS_COARSE_LOCATION //Obtener una ubicacion aproximada del dispositivo
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION
     )
 
     val BACKGROUND_PERMISSIONS = arrayOf(
@@ -61,6 +66,9 @@ object Constants {
         const val NETWORK_ERROR = "Network connection error"
         const val SERVER_CONNECTION_ERROR = "Server connection error"
         const val LOCATION_SENT_SUCCESS = "Location sent successfully"
+        const val VIDEO_STREAMING_STARTED = "Video streaming started"
+        const val VIDEO_STREAMING_STOPPED = "Video streaming stopped"
+        const val VIDEO_STREAMING_ERROR = "Video streaming error"
     }
 
     object ServiceActions {
@@ -75,15 +83,25 @@ object Constants {
         const val TAG_NETWORK = "Pantera_Network"
         const val TAG_SERVICE = "Pantera_Service"
         const val TAG_CONTROLLER = "Pantera_Controller"
+        const val TAG_VIDEO = "Pantera_Video"
+    }
+
+    // ⭐ AGREGAR ESTA FUNCIÓN ⭐
+    fun getVideoServerUrls(): List<String> {
+        return listOf(
+            "ws://$SERVER_IP_1:$WEBRTC_PORT",
+            "ws://$SERVER_IP_2:$WEBRTC_PORT",
+            "ws://$SERVER_IP_3:$WEBRTC_PORT",
+            "ws://$SERVER_IP_4:$WEBRTC_PORT"
+        )
     }
 }
-
 data class LocationData(
     val latitude: Double,
     val longitude: Double,
     val timestamp: Long,
     val systemTimestamp: Long,
-    val deviceId: String, // Identificador único del dispositivo
+    val deviceId: String,
     val accuracy: Float? = null,
     val altitude: Double? = null,
     val speed: Float? = null,
@@ -116,25 +134,6 @@ data class LocationData(
                 deviceId = deviceId
             )
         }
-
-        fun createTestLocation(
-            deviceId: String,
-            lat: Double = 4.123456,
-            lon: Double = -74.123456
-        ): LocationData {
-            val currentTime = System.currentTimeMillis()
-            return LocationData(
-                latitude = lat,
-                longitude = lon,
-                timestamp = currentTime,
-                systemTimestamp = currentTime,
-                deviceId = deviceId,
-                accuracy = 5.0f,
-                altitude = 2640.0,
-                speed = 0.0f,
-                provider = "gps"
-            )
-        }
     }
 
     fun toJsonFormat(): String {
@@ -143,7 +142,7 @@ data class LocationData(
         jsonBuilder.append("\"lat\":$latitude,")
         jsonBuilder.append("\"lon\":$longitude,")
         jsonBuilder.append("\"time\":$timestamp,")
-        jsonBuilder.append("\"deviceId\":\"$deviceId\"") // Añadir deviceId al JSON
+        jsonBuilder.append("\"deviceId\":\"$deviceId\"")
         jsonBuilder.append("}")
         return jsonBuilder.toString()
     }
@@ -153,73 +152,11 @@ data class LocationData(
                 longitude != 0.0 &&
                 timestamp > 0 &&
                 latitude >= -90.0 && latitude <= 90.0 &&
-                longitude >= -180.0 && longitude <= 180.0 &&
-                isTimestampReasonable()
-    }
-
-    private fun isTimestampReasonable(): Boolean {
-        val currentTime = System.currentTimeMillis()
-        val oneHourAgo = currentTime - (60 * 60 * 1000)
-        val oneHourFuture = currentTime + (60 * 60 * 1000)
-        return timestamp in oneHourAgo..oneHourFuture
+                longitude >= -180.0 && longitude <= 180.0
     }
 
     fun getFormattedCoordinates(): String {
         return "LAT: ${String.format("%.6f", latitude)}, LON: ${String.format("%.6f", longitude)}"
-    }
-
-    fun getFormattedCoordinatesWithAccuracy(): String {
-        val coords = getFormattedCoordinates()
-        return if (accuracy != null) {
-            "$coords (±${String.format("%.1f", accuracy)}m)"
-        } else {
-            coords
-        }
-    }
-
-    fun distanceTo(other: LocationData): Float {
-        val results = FloatArray(1)
-        Location.distanceBetween(
-            this.latitude, this.longitude,
-            other.latitude, other.longitude,
-            results
-        )
-        return results[0]
-    }
-
-    fun isSignificantlyDifferentFrom(other: LocationData, minDistanceMeters: Float = 5.0f): Boolean {
-        return distanceTo(other) > minDistanceMeters
-    }
-
-    fun isNewerThan(other: LocationData): Boolean {
-        return this.timestamp > other.timestamp
-    }
-
-    fun isMoreAccurateThan(other: LocationData): Boolean {
-        return when {
-            this.accuracy == null && other.accuracy == null -> false
-            this.accuracy == null -> false
-            other.accuracy == null -> true
-            else -> this.accuracy < other.accuracy
-        }
-    }
-
-    fun getFormattedGpsTimestamp(): String {
-        return SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
-            .format(Date(timestamp))
-    }
-
-    fun getFormattedSystemTimestamp(): String {
-        return SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
-            .format(Date(systemTimestamp))
-    }
-
-    fun getTimestampDifference(): Long {
-        return systemTimestamp - timestamp
-    }
-
-    fun withUpdatedSystemTimestamp(): LocationData {
-        return copy(systemTimestamp = System.currentTimeMillis())
     }
 }
 
@@ -254,19 +191,6 @@ data class ServerStatus(
                 server3UDP == ConnectionStatus.CONNECTED ||
                 server4TCP == ConnectionStatus.CONNECTED ||
                 server4UDP == ConnectionStatus.CONNECTED
-
-    }
-
-    fun hasAllConnections(): Boolean {
-        return server1TCP == ConnectionStatus.CONNECTED &&
-                server1UDP == ConnectionStatus.CONNECTED &&
-                server2TCP == ConnectionStatus.CONNECTED &&
-                server2UDP == ConnectionStatus.CONNECTED &&
-                server3TCP == ConnectionStatus.CONNECTED &&
-                server3UDP == ConnectionStatus.CONNECTED &&
-                server4TCP == ConnectionStatus.CONNECTED &&
-                server4UDP == ConnectionStatus.CONNECTED
-
     }
 
     fun getActiveConnectionsCount(): Int {
@@ -280,33 +204,6 @@ data class ServerStatus(
         if (server4TCP == ConnectionStatus.CONNECTED) count++
         if (server4UDP == ConnectionStatus.CONNECTED) count++
         return count
-    }
-
-    fun getSuccessRate(): Float {
-        val total = totalSentMessages + totalFailedMessages
-        return if (total > 0) {
-            (totalSentMessages.toFloat() / total.toFloat()) * 100f
-        } else {
-            0f
-        }
-    }
-
-    fun updateServerStatus(
-        serverNumber: Int,
-        protocol: String,
-        status: ConnectionStatus
-    ): ServerStatus {
-        return when (serverNumber to protocol.uppercase()) {
-            1 to "TCP" -> copy(server1TCP = status, lastUpdateTime = System.currentTimeMillis())
-            1 to "UDP" -> copy(server1UDP = status, lastUpdateTime = System.currentTimeMillis())
-            2 to "TCP" -> copy(server2TCP = status, lastUpdateTime = System.currentTimeMillis())
-            2 to "UDP" -> copy(server2UDP = status, lastUpdateTime = System.currentTimeMillis())
-            3 to "TCP" -> copy(server3TCP = status, lastUpdateTime = System.currentTimeMillis())
-            3 to "UDP" -> copy(server3UDP = status, lastUpdateTime = System.currentTimeMillis())
-            4 to "TCP" -> copy(server4TCP = status, lastUpdateTime = System.currentTimeMillis())
-            4 to "UDP" -> copy(server4UDP = status, lastUpdateTime = System.currentTimeMillis())
-            else -> this
-        }
     }
 
     fun incrementSuccessfulSend(): ServerStatus {
@@ -323,29 +220,6 @@ data class ServerStatus(
             lastUpdateTime = System.currentTimeMillis()
         )
     }
-
-    fun resetCounters(): ServerStatus {
-        return copy(
-            totalSentMessages = 0,
-            totalFailedMessages = 0,
-            lastUpdateTime = System.currentTimeMillis()
-        )
-    }
-
-    fun getOverallStatusText(): String {
-        val activeConnections = getActiveConnectionsCount()
-        return when (activeConnections) {
-            0 -> "All servers disconnected"
-            4 -> "All servers connected"
-            else -> "$activeConnections of 4 connections active"
-        }
-    }
-
-    fun hasRecentActivity(): Boolean {
-        val currentTime = System.currentTimeMillis()
-        val tenSecondsMillis = 10 * 1000L
-        return (currentTime - lastUpdateTime) < tenSecondsMillis
-    }
 }
 
 data class AppState(
@@ -360,12 +234,7 @@ data class AppState(
     val serverStatus: ServerStatus = ServerStatus(),
     val statusMessage: String = "",
     val errorMessage: String = "",
-    val isShowingError: Boolean = false,
-    val isFirstLaunch: Boolean = true,
-    val isDebugging: Boolean = false,
-    val sessionStartTime: Long = 0L,
-    val totalLocationsSent: Int = 0,
-    val sessionDuration: Long = 0L
+    val isShowingError: Boolean = false
 ) {
     fun canStartTracking(): Boolean {
         return hasLocationPermission &&
@@ -382,27 +251,10 @@ data class AppState(
         return currentLocation?.isValid() == true
     }
 
-    fun getSessionDurationFormatted(): String {
-        if (sessionStartTime == 0L) return "00:00:00"
-
-        val duration = if (isTrackingEnabled) {
-            System.currentTimeMillis() - sessionStartTime
-        } else {
-            sessionDuration
-        }
-
-        val hours = duration / 3600000
-        val minutes = (duration % 3600000) / 60000
-        val seconds = (duration % 60000) / 1000
-
-        return String.format("%02d:%02d:%02d", hours, minutes, seconds)
-    }
-
     fun startTracking(): AppState {
         return copy(
             isTrackingEnabled = true,
             isLocationServiceRunning = true,
-            sessionStartTime = if (sessionStartTime == 0L) System.currentTimeMillis() else sessionStartTime,
             statusMessage = "Location tracking started",
             errorMessage = "",
             isShowingError = false
@@ -410,16 +262,9 @@ data class AppState(
     }
 
     fun stopTracking(): AppState {
-        val finalDuration = if (sessionStartTime > 0L) {
-            System.currentTimeMillis() - sessionStartTime
-        } else {
-            sessionDuration
-        }
-
         return copy(
             isTrackingEnabled = false,
             isLocationServiceRunning = false,
-            sessionDuration = finalDuration,
             statusMessage = "Location tracking stopped",
             errorMessage = "",
             isShowingError = false
@@ -430,8 +275,7 @@ data class AppState(
         return copy(
             currentLocation = location,
             lastKnownLocation = currentLocation ?: location,
-            isLoadingLocation = false,
-            totalLocationsSent = totalLocationsSent + 1
+            isLoadingLocation = false
         )
     }
 
@@ -462,29 +306,8 @@ data class AppState(
         )
     }
 
-    fun clearMessages(): AppState {
-        return copy(
-            statusMessage = "",
-            errorMessage = "",
-            isShowingError = false
-        )
-    }
-
     fun updateServerStatus(newServerStatus: ServerStatus): AppState {
         return copy(serverStatus = newServerStatus)
-    }
-
-    fun getStatusSummary(): String {
-        return when {
-            !hasAllPermissions() -> "Permissions required"
-            isTrackingEnabled -> "Tracking active - ${serverStatus.getActiveConnectionsCount()}/4 servers connected"
-            hasValidLocation() -> "Ready to track"
-            else -> "Waiting for GPS signal"
-        }
-    }
-
-    fun isActive(): Boolean {
-        return isTrackingEnabled && hasValidLocation() && serverStatus.hasAnyConnection()
     }
 }
 
@@ -492,6 +315,7 @@ class Backend(private val context: Context) : ViewModel() {
 
     companion object {
         private const val TAG = Constants.Logs.TAG_MAIN
+        private const val TAG_VIDEO = Constants.Logs.TAG_VIDEO
     }
 
     private val deviceId: String by lazy {
@@ -501,6 +325,9 @@ class Backend(private val context: Context) : ViewModel() {
     private val fusedLocationClient: FusedLocationProviderClient by lazy {
         LocationServices.getFusedLocationProviderClient(context)
     }
+
+    // ⭐ Variable para video streaming ⭐
+    private var videoStreamingClient: VideoStreamingClient? = null
 
     private val _appState = MutableStateFlow(AppState())
     val appState: StateFlow<AppState> = _appState.asStateFlow()
@@ -590,6 +417,7 @@ class Backend(private val context: Context) : ViewModel() {
         Log.d(TAG, "Starting tracking")
 
         if (!_appState.value.hasAllPermissions()) {
+            Log.w(TAG, "No se tienen todos los permisos")
             return
         }
 
@@ -599,6 +427,7 @@ class Backend(private val context: Context) : ViewModel() {
         }
 
         if (_appState.value.isTrackingEnabled) {
+            Log.w(TAG, "Tracking ya está activo")
             return
         }
 
@@ -612,15 +441,52 @@ class Backend(private val context: Context) : ViewModel() {
 
             updateAppState { it.startTracking() }
             startLocationProcessingJob()
-
-
             startLocationService()
 
-            Log.d(TAG, "Location tracking started successfully")
+            Log.d(TAG, "✅ Location tracking iniciado exitosamente")
+
+            // ⭐ INICIAR VIDEO STREAMING ⭐
+            try {
+                Log.d(TAG_VIDEO, "Iniciando video streaming...")
+
+                if (ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.CAMERA
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    Log.e(TAG_VIDEO, "❌ No hay permiso de cámara")
+                    updateAppState {
+                        it.showErrorMessage("Permiso de cámara requerido")
+                    }
+                } else {
+                    val serverUrls = Constants.getVideoServerUrls()
+
+                    Log.d(TAG_VIDEO, "Conectando a ${serverUrls.size} servidores")
+
+                    videoStreamingClient = VideoStreamingClient(
+                        context = context,
+                        deviceId = deviceId,
+                        serverUrls = serverUrls
+                    )
+
+                    videoStreamingClient?.connect()
+
+                    Log.d(TAG_VIDEO, "✅ Video streaming iniciado")
+                    updateAppState {
+                        it.showSuccessMessage("Tracking y video iniciados")
+                    }
+                }
+
+            } catch (e: Exception) {
+                Log.e(TAG_VIDEO, "❌ Error iniciando video: ${e.message}", e)
+                updateAppState {
+                    it.showErrorMessage("Video falló, GPS continúa")
+                }
+            }
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error starting location tracking", e)
-            updateAppState { it.showErrorMessage("Error starting tracking: ${e.message}") }
+            Log.e(TAG, "❌ Error starting tracking", e)
+            updateAppState { it.showErrorMessage("Error: ${e.message}") }
         }
     }
 
@@ -631,14 +497,37 @@ class Backend(private val context: Context) : ViewModel() {
             stopLocationUpdates()
             locationTrackingJob?.cancel()
             locationTrackingJob = null
-            updateAppState { it.stopTracking() }
+
+            Log.d(TAG, "✅ Location updates detenidos")
+
+            // ⭐ DETENER VIDEO STREAMING ⭐
+            try {
+                if (videoStreamingClient != null) {
+                    val status = videoStreamingClient?.getConnectionStatus() ?: "N/A"
+                    Log.d(TAG_VIDEO, "Deteniendo video - Status: $status")
+
+                    videoStreamingClient?.disconnect()
+                    videoStreamingClient = null
+
+                    Log.d(TAG_VIDEO, "✅ Video detenido")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG_VIDEO, "❌ Error deteniendo video: ${e.message}", e)
+            }
+
+            updateAppState {
+                it.stopTracking().showSuccessMessage("Tracking y video detenidos")
+            }
 
             stopLocationService()
 
-            Log.d(TAG, "Location tracking stopped successfully")
+            Log.d(TAG, "✅ Tracking completamente detenido")
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error stopping location tracking", e)
+            Log.e(TAG, "❌ Error stopping tracking", e)
+            updateAppState {
+                it.showErrorMessage("Error: ${e.message}")
+            }
         }
     }
 
@@ -838,7 +727,6 @@ class Backend(private val context: Context) : ViewModel() {
     private suspend fun sendLocationToAllServers(locationData: LocationData): Result<ServerStatus> {
         if (!isNetworkAvailable()) {
             Log.w(TAG, "No network connection available")
-            addToPendingQueue(locationData)
             return Result.failure(Exception("No network available"))
         }
 
@@ -893,8 +781,10 @@ class Backend(private val context: Context) : ViewModel() {
                     lastUpdateTime = System.currentTimeMillis()
                 )
 
-                val successCount = listOf(server1TcpResult, server1UdpResult, server2TcpResult, server2UdpResult, server3TcpResult, server3UdpResult, server4TcpResult, server4UdpResult )
-                    .count { it == ServerStatus.ConnectionStatus.CONNECTED }
+                val successCount = listOf(
+                    server1TcpResult, server1UdpResult, server2TcpResult, server2UdpResult,
+                    server3TcpResult, server3UdpResult, server4TcpResult, server4UdpResult
+                ).count { it == ServerStatus.ConnectionStatus.CONNECTED }
 
                 val finalStatus = if (successCount > 0) {
                     newStatus.incrementSuccessfulSend()
@@ -907,7 +797,6 @@ class Backend(private val context: Context) : ViewModel() {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error sending location: ${e.message}", e)
-            addToPendingQueue(locationData)
             Result.failure(e)
         }
     }
@@ -1000,16 +889,11 @@ class Backend(private val context: Context) : ViewModel() {
                 }
 
                 val address = InetAddress.getByName(serverIP)
-                val packet = DatagramPacket(
-                    dataBytes,
-                    dataBytes.size,
-                    address,
-                    port
-                )
+                val packet = DatagramPacket(dataBytes, dataBytes.size, address, port)
 
                 socket.send(packet)
 
-                Log.d(TAG, "UDP: Successfully sent to $serverIP:$port (${dataBytes.size} bytes)")
+                Log.d(TAG, "UDP: Successfully sent JSON to $serverIP:$port")
                 ServerStatus.ConnectionStatus.CONNECTED
 
             } catch (e: SocketTimeoutException) {
@@ -1028,265 +912,58 @@ class Backend(private val context: Context) : ViewModel() {
         }
 
     private fun isNetworkAvailable(): Boolean {
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val connectivityManager =
+            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
-        return try {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             val network = connectivityManager.activeNetwork ?: return false
-            val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+            val capabilities =
+                connectivityManager.getNetworkCapabilities(network) ?: return false
 
-            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error checking network availability", e)
-            false
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                    capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        } else {
+            @Suppress("DEPRECATION")
+            val networkInfo = connectivityManager.activeNetworkInfo
+            networkInfo?.isConnected == true
         }
     }
-
-    private fun addToPendingQueue(locationData: LocationData) {
-        synchronized(pendingLocations) {
-            pendingLocations.add(locationData)
-
-            if (pendingLocations.size > 100) {
-                pendingLocations.removeAt(0)
-                Log.w(TAG, "Pending queue reached max size (100), removed oldest location.")
-            }
-
-            Log.d(TAG, "Added location to pending queue. Current queue size: ${pendingLocations.size}")
-        }
-
-        if (!isProcessingQueue) {
-            processPendingLocations()
-        }
-    }
-
-    private fun processPendingLocations() {
-        networkScope.launch {
-            isProcessingQueue = true
-
-            var shouldContinue = true
-            while (pendingLocations.isNotEmpty() && isNetworkAvailable() && shouldContinue) {
-                val location = synchronized(pendingLocations) {
-                    if (pendingLocations.isNotEmpty()) {
-                        pendingLocations.removeAt(0)
-                    } else {
-                        null
-                    }
-                }
-
-                if (location != null) {
-                    Log.d(TAG, "Processing pending location: ${location.getFormattedCoordinates()}")
-
-                    try {
-                        val result = sendLocationToAllServers(location)
-
-                        result.fold(
-                            onSuccess = {
-                                Log.d(TAG, "Pending location sent successfully during retry.")
-                            },
-                            onFailure = {
-                                synchronized(pendingLocations) {
-                                    pendingLocations.add(0, location)
-                                }
-                                shouldContinue = false
-                                Log.w(TAG, "Failed to send pending location, will retry later. Location re-queued.")
-                            }
-                        )
-
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error processing pending location: ${e.message}", e)
-                        synchronized(pendingLocations) {
-                            pendingLocations.add(0, location)
-                        }
-                        shouldContinue = false
-                    }
-
-                    if (shouldContinue) {
-                        delay(500)
-                    }
-                } else {
-                    shouldContinue = false
-                }
-            }
-
-            isProcessingQueue = false
-
-            if (pendingLocations.isNotEmpty()) {
-                Log.d(TAG, "Finished processing pending locations. ${pendingLocations.size} locations remain in queue.")
-            } else {
-                Log.d(TAG, "All pending locations processed successfully. Queue is empty.")
-            }
-        }
-    }
-    suspend fun sendTestData(): Result<String> {
-        Log.d(TAG, "Sending test data to servers...")
-
-        if (!isNetworkAvailable()) {
-            return Result.failure(Exception(Constants.Messages.NETWORK_ERROR))
-        }
-
-        return try {
-            val testLocation = LocationData.createTestLocation(deviceId)
-            val result = sendLocationToAllServers(testLocation)
-
-            result.fold(
-                onSuccess = { serverStatus ->
-                    val message = "Test data sent to ${serverStatus.getActiveConnectionsCount()}/4 servers"
-                    updateAppState { it.showSuccessMessage(message) }
-                    Result.success(message)
-                },
-                onFailure = { error ->
-                    val errorMessage = "Test failed: ${error.message}"
-                    updateAppState { it.showErrorMessage(errorMessage) }
-                    Result.failure(error)
-                }
-            )
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error sending test data", e)
-            val errorMessage = "Test error: ${e.message}"
-            updateAppState { it.showErrorMessage(errorMessage) }
-            Result.failure(e)
-        }
-    }
-
-    fun clearMessages() {
-        updateAppState { it.clearMessages() }
-    }
-
-    fun resetStatistics() {
-        currentServerStatus = currentServerStatus.resetCounters()
-        updateAppState {
-            it.copy(
-                totalLocationsSent = 0,
-                sessionStartTime = if (it.isTrackingEnabled) System.currentTimeMillis() else 0L
-            )
-        }
-        Log.d(TAG, "Statistics reset")
-    }
-
-    fun getDiagnosticInfo(): Map<String, String> {
-        val appState = _appState.value
-
-        return mapOf(
-            "tracking_active" to appState.isTrackingEnabled.toString(),
-            "location_permission" to appState.hasLocationPermission.toString(),
-            "background_permission" to appState.hasBackgroundLocationPermission.toString(),
-            "current_location" to (appState.currentLocation?.getFormattedCoordinates() ?: "None"),
-            "session_duration" to appState.getSessionDurationFormatted(),
-            "locations_sent" to appState.totalLocationsSent.toString(),
-            "location_updates_active" to isRequestingUpdates.toString(),
-            "pending_locations" to pendingLocations.size.toString(),
-            "network_available" to isNetworkAvailable().toString(),
-            "app_version" to "1.0.0"
-        )
-    }
-
-    fun getCurrentAppState(): AppState = _appState.value
 
     fun canStartTracking(): Boolean {
         return _appState.value.canStartTracking()
     }
 
-    private fun updateAppState(update: (AppState) -> AppState) {
-        _appState.value = update(_appState.value)
-    }
-
-    fun getNetworkInfo(): String {
-        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-
-        return try {
-            val network = connectivityManager.activeNetwork
-            val capabilities = connectivityManager.getNetworkCapabilities(network)
-
-            when {
-                capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> "WiFi"
-                capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> "Mobile Data"
-                capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> "Ethernet"
-                else -> "No Connection"
-            }
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting network info", e)
-            "Unknown"
-        }
-    }
-
-    suspend fun flushPendingLocations(): Result<String> {
-        val pendingCount = pendingLocations.size
-
-        return if (pendingCount > 0) {
-            if (isNetworkAvailable()) {
-                Result.success("Processing $pendingCount pending locations")
-            } else {
-                Result.failure(Exception("No network available to flush pending locations"))
-            }
-        } else {
-            Result.success("No pending locations to flush")
-        }
-    }
-
     fun onAppResumed() {
         Log.d(TAG, "App resumed")
         checkPermissions()
-
-        viewModelScope.launch {
-            if (appState.value.isTrackingEnabled) {
-            }
-        }
     }
 
     fun onAppPaused() {
         Log.d(TAG, "App paused")
     }
 
-    fun onNetworkChanged(isConnected: Boolean) {
-        Log.d(TAG, "Network changed - Connected: $isConnected")
-
-        if (isConnected && appState.value.isTrackingEnabled) {
-            viewModelScope.launch {
-                flushPendingLocations()
-            }
-        }
+    private fun updateAppState(transform: (AppState) -> AppState) {
+        _appState.update(transform)
     }
 
-    fun handleEmergency() {
-        viewModelScope.launch {
-            Log.w(TAG, "Emergency mode activated")
+    // ⭐ FUNCIONES PARA VIDEO STREAMING ⭐
 
-            val locationResult = getCurrentLocation()
+    fun getVideoStreamingStatus(): String {
+        return videoStreamingClient?.getConnectionStatus() ?: "No iniciado"
+    }
 
-            locationResult.fold(
-                onSuccess = { location ->
-                    repeat(3) {
-                        sendTestData()
-                    }
-                    Log.w(TAG, "Emergency location sent multiple times")
-                },
-                onFailure = { error ->
-                    Log.e(TAG, "Failed to get emergency location: ${error.message}")
-                }
-            )
-        }
+    fun isVideoStreamingActive(): Boolean {
+        return videoStreamingClient?.isActive() ?: false
     }
 
     override fun onCleared() {
         super.onCleared()
-
-        Log.d(TAG, "Backend being cleared")
-
-        if (appState.value.isTrackingEnabled) {
-            stopTracking()
+        try {
+            videoStreamingClient?.disconnect()
+            videoStreamingClient = null
+            Log.d(TAG, "Backend cleared y recursos liberados")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error limpiando recursos: ${e.message}")
         }
-
-        locationTrackingJob?.cancel()
-        controllerScope.cancel()
-        networkScope.cancel()
-
-        stopLocationUpdates()
-        _locationUpdates.close()
-
-        Log.d(TAG, "Backend cleared successfully")
     }
 }

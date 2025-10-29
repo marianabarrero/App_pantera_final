@@ -104,4 +104,29 @@ dependencies {
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    //AGREGAR ESTAS LÍNEAS PARA CAMERAX
+    val cameraxVersion = "1.3.1"
+    implementation("androidx.camera:camera-core:$cameraxVersion")
+    implementation("androidx.camera:camera-camera2:$cameraxVersion")
+    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+    implementation("androidx.camera:camera-view:$cameraxVersion")
+    implementation("androidx.camera:camera-video:${cameraxVersion}")
+    // OkHttp para enviar frames al servidor
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // Coroutines para manejo asíncrono
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    // ⭐ REEMPLAZAR CON ESTAS DEPENDENCIAS CORRECTAS ⭐
+
+    // WebRTC de Stream (más estable y actualizada)
+    implementation("io.getstream:stream-webrtc-android:1.1.3")
+
+    // Socket.IO para comunicación
+    implementation("io.socket:socket.io-client:2.1.0") {
+        exclude(group = "org.json", module = "json")
+    }
+
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
 }
