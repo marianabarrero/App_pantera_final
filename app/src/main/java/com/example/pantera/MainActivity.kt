@@ -1,4 +1,4 @@
-package com.tudominio.smslocation
+package com.example.pantera
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

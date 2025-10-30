@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.tudominio.smslocation"
+    namespace = "com.example.pantera"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.tudominio.smslocation"
+        applicationId = "com.example.pantera"
         minSdk = 24
         targetSdk = 35
         versionCode = 1

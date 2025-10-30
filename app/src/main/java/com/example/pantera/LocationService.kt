@@ -1,4 +1,4 @@
-package com.tudominio.smslocation
+package com.example.pantera
 
 import android.app.Notification
 import android.app.NotificationChannel

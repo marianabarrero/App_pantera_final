@@ -1,4 +1,4 @@
-package com.tudominio.smslocation
+package com.example.pantera // 👈 ASEGÚRATE DE QUE ESTO SEA CORRECTO
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -327,7 +327,7 @@ class Backend(private val context: Context) : ViewModel() {
     }
 
     // ⭐ Variable para video streaming ⭐
-    private var videoStreamingClient: VideoStreamingClient? = null
+
 
     private val _appState = MutableStateFlow(AppState())
     val appState: StateFlow<AppState> = _appState.asStateFlow()
@@ -459,24 +459,29 @@ class Backend(private val context: Context) : ViewModel() {
                         it.showErrorMessage("Permiso de cámara requerido")
                     }
                 } else {
-                    val serverUrls = Constants.getVideoServerUrls()
+                    val serverUrl = Constants.getVideoServerUrls().firstOrNull()
 
-                    Log.d(TAG_VIDEO, "Conectando a ${serverUrls.size} servidores")
+                    if (serverUrl == null) {
+                        Log.e(TAG_VIDEO, "❌ No se encontró URL de servidor WebRTC")
+                        updateAppState { it.showErrorMessage("No WebRTC server URL") }
+                        return
+                    }
 
-                    videoStreamingClient = VideoStreamingClient(
-                        context = context,
-                        deviceId = deviceId,
-                        serverUrls = serverUrls
-                    )
+                    Log.d(TAG_VIDEO, "Usando servidor WebRTC: $serverUrl")
 
-                    videoStreamingClient?.connect()
+                    // Iniciar el CameraStreamingService
+                    val intent = Intent(context, CameraStreamingService::class.java).apply {
+                        action = CameraStreamingService.ACTION_START_STREAMING
+                        putExtra(CameraStreamingService.EXTRA_SERVER_URL, serverUrl)
+                        putExtra(CameraStreamingService.EXTRA_DEVICE_ID, deviceId)
+                    }
+                    context.startService(intent) // Usar startService, no startForegroundService desde aquí
 
-                    Log.d(TAG_VIDEO, "✅ Video streaming iniciado")
+                    Log.d(TAG_VIDEO, "✅ Solicitud de inicio de CameraStreamingService enviada")
                     updateAppState {
                         it.showSuccessMessage("Tracking y video iniciados")
                     }
                 }
-
             } catch (e: Exception) {
                 Log.e(TAG_VIDEO, "❌ Error iniciando video: ${e.message}", e)
                 updateAppState {
@@ -500,17 +505,15 @@ class Backend(private val context: Context) : ViewModel() {
 
             Log.d(TAG, "✅ Location updates detenidos")
 
-            // ⭐ DETENER VIDEO STREAMING ⭐
+            // ⭐ DETENER VIDEO STREAMING (a través del servicio) ⭐
             try {
-                if (videoStreamingClient != null) {
-                    val status = videoStreamingClient?.getConnectionStatus() ?: "N/A"
-                    Log.d(TAG_VIDEO, "Deteniendo video - Status: $status")
-
-                    videoStreamingClient?.disconnect()
-                    videoStreamingClient = null
-
-                    Log.d(TAG_VIDEO, "✅ Video detenido")
+                Log.d(TAG_VIDEO, "Deteniendo CameraStreamingService...")
+                val intent = Intent(context, CameraStreamingService::class.java).apply {
+                    action = CameraStreamingService.ACTION_STOP_STREAMING
                 }
+                context.startService(intent)
+                Log.d(TAG_VIDEO, "✅ Solicitud de detención de CameraStreamingService enviada")
+
             } catch (e: Exception) {
                 Log.e(TAG_VIDEO, "❌ Error deteniendo video: ${e.message}", e)
             }
@@ -519,7 +522,7 @@ class Backend(private val context: Context) : ViewModel() {
                 it.stopTracking().showSuccessMessage("Tracking y video detenidos")
             }
 
-            stopLocationService()
+            stopLocationService() // Detiene el servicio de GPS
 
             Log.d(TAG, "✅ Tracking completamente detenido")
 
@@ -946,22 +949,15 @@ class Backend(private val context: Context) : ViewModel() {
         _appState.update(transform)
     }
 
-    // ⭐ FUNCIONES PARA VIDEO STREAMING ⭐
-
-    fun getVideoStreamingStatus(): String {
-        return videoStreamingClient?.getConnectionStatus() ?: "No iniciado"
-    }
-
-    fun isVideoStreamingActive(): Boolean {
-        return videoStreamingClient?.isActive() ?: false
-    }
+    // ⭐ FUNCIONES PARA VIDEO (YA NO SE USAN AQUÍ) ⭐
+    // fun getVideoStreamingStatus(): String { ... }
+    // fun isVideoStreamingActive(): Boolean { ... }
 
     override fun onCleared() {
         super.onCleared()
         try {
-            videoStreamingClient?.disconnect()
-            videoStreamingClient = null
-            Log.d(TAG, "Backend cleared y recursos liberados")
+            // Ya no manejamos el video client aquí
+            Log.d(TAG, "Backend cleared")
         } catch (e: Exception) {
             Log.e(TAG, "Error limpiando recursos: ${e.message}")
         }
