@@ -17,9 +17,9 @@ class VideoStreamingClient(
     private var socket: Socket? = null
     private var peerConnection: PeerConnection? = null
     private var videoCapturer: CameraVideoCapturer? = null
-    private lateinit var videoSource: VideoSource
-    private lateinit var videoTrack: VideoTrack
-    private lateinit var surfaceTextureHelper: SurfaceTextureHelper
+    private var videoSource: VideoSource? = null
+    private var videoTrack: VideoTrack? = null
+    private var surfaceTextureHelper: SurfaceTextureHelper? = null  // ⭐ CAMBIO: Nullable
 
     companion object {
         private const val TAG = "VideoStreamingClient"
@@ -72,7 +72,6 @@ class VideoStreamingClient(
             try {
                 json.put("type", sessionDescription.type.canonicalForm())
                 json.put("sdp", sessionDescription.description)
-                // Emitir 'answer' si es una respuesta, 'offer' si es una oferta
                 val eventName = if (sessionDescription.type == SessionDescription.Type.ANSWER) "answer" else "offer"
                 socket?.emit(eventName, json)
             } catch (e: JSONException) {
@@ -87,6 +86,12 @@ class VideoStreamingClient(
 
     fun startStreaming(serverUrl: String, deviceId: String) {
         try {
+            Log.d(TAG, "════════════════════════════════════════")
+            Log.d(TAG, "🎥 Iniciando streaming de video")
+            Log.d(TAG, "   Server: $serverUrl")
+            Log.d(TAG, "   Device ID: $deviceId")
+            Log.d(TAG, "════════════════════════════════════════")
+
             val opts = IO.Options()
             opts.query = "deviceId=$deviceId"
             opts.transports = arrayOf("websocket")
@@ -96,23 +101,25 @@ class VideoStreamingClient(
             setupSocketListeners()
             socket?.connect()
 
-            Log.d(TAG, "Iniciando streaming a $serverUrl con deviceId $deviceId")
+            Log.d(TAG, "✅ Socket WebSocket configurado correctamente")
 
         } catch (e: URISyntaxException) {
-            Log.e(TAG, "Error de URI", e)
+            Log.e(TAG, "❌ Error de URI: ${e.message}", e)
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error iniciando streaming: ${e.message}", e)
         }
     }
 
     private fun setupSocketListeners() {
         socket?.on(Socket.EVENT_CONNECT) {
-            Log.d(TAG, "Socket conectado")
+            Log.d(TAG, "✅ Socket conectado exitosamente")
         }?.on(Socket.EVENT_DISCONNECT) {
-            Log.d(TAG, "Socket desconectado")
+            Log.d(TAG, "⚠️ Socket desconectado")
             stopStreaming()
         }?.on(Socket.EVENT_CONNECT_ERROR) { args ->
-            Log.e(TAG, "Error de conexión: ${args.getOrNull(0)}")
+            Log.e(TAG, "❌ Error de conexión: ${args.getOrNull(0)}")
         }?.on("offer") { args ->
-            Log.d(TAG, "Oferta SDP recibida")
+            Log.d(TAG, "📩 Oferta SDP recibida del servidor")
             try {
                 val sdpJson = args[0] as JSONObject
                 val sdpDescription = sdpJson.getString("sdp")
@@ -123,10 +130,10 @@ class VideoStreamingClient(
                 peerConnection?.setRemoteDescription(SimpleSdpObserver(), SessionDescription(sdpType, sdpDescription))
                 createAnswer()
             } catch (e: JSONException) {
-                Log.e(TAG, "Error al parsear oferta SDP", e)
+                Log.e(TAG, "❌ Error al parsear oferta SDP", e)
             }
         }?.on("ice_candidate") { args ->
-            Log.d(TAG, "Candidato ICE recibido")
+            Log.d(TAG, "🧊 Candidato ICE recibido")
             try {
                 val json = args[0] as JSONObject
                 val candidate = IceCandidate(
@@ -135,49 +142,64 @@ class VideoStreamingClient(
                     json.getString("candidate")
                 )
                 peerConnection?.addIceCandidate(candidate)
+                Log.d(TAG, "✅ Candidato ICE añadido")
             } catch (e: JSONException) {
-                Log.e(TAG, "Error al parsear candidato ICE", e)
+                Log.e(TAG, "❌ Error al parsear candidato ICE", e)
             }
         }
     }
 
     private fun initPeerConnection() {
-        if (peerConnection != null) return
-
-        Log.d(TAG, "Inicializando PeerConnection")
-
-        // Configuración de ICE Servers (STUN)
-        val iceServers = listOf(
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
-        )
-
-        // Crear PeerConnection
-        peerConnection = peerConnectionFactory.createPeerConnection(iceServers, peerConnectionObserver)
-
-        // Inicializar helper de textura y capturador de video
-        surfaceTextureHelper = SurfaceTextureHelper.create("VideoCapturerThread", eglBaseContext)
-        videoCapturer = createCameraCapturer()
-
-        if (videoCapturer == null) {
-            Log.e(TAG, "No se pudo crear el capturador de video")
+        if (peerConnection != null) {
+            Log.d(TAG, "⚠️ PeerConnection ya existe, reutilizando")
             return
         }
 
-        // Crear fuente de video y track
-        videoSource = peerConnectionFactory.createVideoSource(videoCapturer!!.isScreencast)
-        videoTrack = peerConnectionFactory.createVideoTrack(VIDEO_TRACK_ID, videoSource)
+        Log.d(TAG, "🔧 Inicializando PeerConnection...")
 
-        // Inicializar y arrancar capturador
-        videoCapturer?.initialize(surfaceTextureHelper, context, videoSource.capturerObserver)
-        videoCapturer?.startCapture(VIDEO_RESOLUTION_WIDTH, VIDEO_RESOLUTION_HEIGHT, VIDEO_FPS)
+        try {
+            // Configuración de ICE Servers (STUN)
+            val iceServers = listOf(
+                PeerConnection.IceServer.builder("stun:stun.l.google.com:19302").createIceServer()
+            )
 
-        // Añadir track de video al PeerConnection
-        peerConnection?.addTrack(videoTrack)
-        Log.d(TAG, "Track de video añadido a PeerConnection")
+            // Crear PeerConnection
+            peerConnection = peerConnectionFactory.createPeerConnection(iceServers, peerConnectionObserver)
+            Log.d(TAG, "✅ PeerConnection creada")
+
+            // Inicializar helper de textura y capturador de video
+            surfaceTextureHelper = SurfaceTextureHelper.create("VideoCapturerThread", eglBaseContext)
+            Log.d(TAG, "✅ SurfaceTextureHelper creado")
+
+            videoCapturer = createCameraCapturer()
+
+            if (videoCapturer == null) {
+                Log.e(TAG, "❌ No se pudo crear el capturador de video")
+                return
+            }
+            Log.d(TAG, "✅ CameraVideoCapturer creado")
+
+            // Crear fuente de video y track
+            videoSource = peerConnectionFactory.createVideoSource(videoCapturer!!.isScreencast)
+            videoTrack = peerConnectionFactory.createVideoTrack(VIDEO_TRACK_ID, videoSource)
+            Log.d(TAG, "✅ VideoSource y VideoTrack creados")
+
+            // Inicializar y arrancar capturador
+            videoCapturer?.initialize(surfaceTextureHelper, context, videoSource!!.capturerObserver)
+            videoCapturer?.startCapture(VIDEO_RESOLUTION_WIDTH, VIDEO_RESOLUTION_HEIGHT, VIDEO_FPS)
+            Log.d(TAG, "✅ Captura de cámara iniciada: ${VIDEO_RESOLUTION_WIDTH}x${VIDEO_RESOLUTION_HEIGHT} @ ${VIDEO_FPS}fps")
+
+            // Añadir track de video al PeerConnection
+            peerConnection?.addTrack(videoTrack)
+            Log.d(TAG, "✅ Track de video añadido a PeerConnection")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error inicializando PeerConnection: ${e.message}", e)
+        }
     }
 
     private fun createAnswer() {
-        Log.d(TAG, "Creando respuesta SDP")
+        Log.d(TAG, "📝 Creando respuesta SDP...")
         val constraints = MediaConstraints()
         constraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "false"))
         constraints.mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"))
@@ -186,49 +208,98 @@ class VideoStreamingClient(
     }
 
     private fun createCameraCapturer(): CameraVideoCapturer? {
+        Log.d(TAG, "🎥 Buscando cámaras disponibles...")
         val enumerator = Camera2Enumerator(context)
         val deviceNames = enumerator.deviceNames
+
+        Log.d(TAG, "📱 Cámaras encontradas: ${deviceNames.size}")
 
         // Intentar encontrar la cámara trasera
         for (deviceName in deviceNames) {
             if (enumerator.isBackFacing(deviceName)) {
+                Log.d(TAG, "✅ Usando cámara trasera: $deviceName")
                 return enumerator.createCapturer(deviceName, null)
             }
         }
         // Si no, intentar encontrar la cámara frontal
         for (deviceName in deviceNames) {
             if (enumerator.isFrontFacing(deviceName)) {
+                Log.d(TAG, "✅ Usando cámara frontal: $deviceName")
                 return enumerator.createCapturer(deviceName, null)
             }
         }
         // Si no, usar la primera cámara disponible
         if (deviceNames.isNotEmpty()) {
+            Log.d(TAG, "✅ Usando primera cámara disponible: ${deviceNames[0]}")
             return enumerator.createCapturer(deviceNames[0], null)
         }
+
+        Log.e(TAG, "❌ No se encontraron cámaras disponibles")
         return null
     }
 
     fun stopStreaming() {
-        Log.d(TAG, "Deteniendo streaming")
+        Log.d(TAG, "════════════════════════════════════════")
+        Log.d(TAG, "🛑 Deteniendo streaming de video...")
+        Log.d(TAG, "════════════════════════════════════════")
+
         try {
-            videoCapturer?.stopCapture()
-        } catch (e: InterruptedException) {
-            Log.e(TAG, "Error al detener captura", e)
+            // ⭐ VERIFICACIÓN SEGURA ⭐
+            if (videoCapturer != null) {
+                try {
+                    videoCapturer?.stopCapture()
+                    Log.d(TAG, "✅ Captura de cámara detenida")
+                } catch (e: InterruptedException) {
+                    Log.e(TAG, "⚠️ Error al detener captura: ${e.message}", e)
+                }
+                videoCapturer?.dispose()
+                videoCapturer = null
+                Log.d(TAG, "✅ VideoCapturer liberado")
+            }
+
+            // ⭐ VERIFICACIÓN SEGURA ⭐
+            surfaceTextureHelper?.let {
+                it.dispose()
+                surfaceTextureHelper = null
+                Log.d(TAG, "✅ SurfaceTextureHelper liberado")
+            }
+
+            // ⭐ VERIFICACIÓN SEGURA ⭐
+            videoTrack?.let {
+                it.dispose()
+                videoTrack = null
+                Log.d(TAG, "✅ VideoTrack liberado")
+            }
+
+            // ⭐ VERIFICACIÓN SEGURA ⭐
+            videoSource?.let {
+                it.dispose()
+                videoSource = null
+                Log.d(TAG, "✅ VideoSource liberado")
+            }
+
+            // ⭐ VERIFICACIÓN SEGURA ⭐
+            peerConnection?.let {
+                it.close()
+                it.dispose()
+                peerConnection = null
+                Log.d(TAG, "✅ PeerConnection cerrada y liberada")
+            }
+
+            // ⭐ VERIFICACIÓN SEGURA ⭐
+            socket?.let {
+                it.disconnect()
+                it.off()
+                socket = null
+                Log.d(TAG, "✅ Socket desconectado y liberado")
+            }
+
+            Log.d(TAG, "════════════════════════════════════════")
+            Log.d(TAG, "✅ Streaming completamente detenido")
+            Log.d(TAG, "════════════════════════════════════════")
+
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Error deteniendo streaming: ${e.message}", e)
         }
-        videoCapturer?.dispose()
-        videoCapturer = null
-
-        surfaceTextureHelper.dispose()
-
-        videoTrack.dispose()
-        videoSource.dispose()
-
-        peerConnection?.close()
-        peerConnection?.dispose()
-        peerConnection = null
-
-        socket?.disconnect()
-        socket?.off()
-        socket = null
     }
 }
