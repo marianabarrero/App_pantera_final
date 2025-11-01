@@ -37,7 +37,7 @@ object Constants {
     // Puertos
     const val TCP_PORT = 5000
     const val UDP_PORT = 6001
-    const val WEBRTC_PORT = 8080
+    const val WEBRTC_PORT = 8443
 
     const val LOCATION_UPDATE_INTERVAL = 8000L
     const val LOCATION_FASTEST_INTERVAL = 8000L
@@ -89,10 +89,10 @@ object Constants {
     // ⭐ AGREGAR ESTA FUNCIÓN ⭐
     fun getVideoServerUrls(): List<String> {
         return listOf(
-            "ws://$SERVER_IP_1:$WEBRTC_PORT",
-            "ws://$SERVER_IP_2:$WEBRTC_PORT",
-            "ws://$SERVER_IP_3:$WEBRTC_PORT",
-            "ws://$SERVER_IP_4:$WEBRTC_PORT"
+            "wss://$SERVER_IP_1:$WEBRTC_PORT",
+            "wss://$SERVER_IP_2:$WEBRTC_PORT",
+            "wss://$SERVER_IP_3:$WEBRTC_PORT",
+            "wss://$SERVER_IP_4:$WEBRTC_PORT"
         )
     }
 }
