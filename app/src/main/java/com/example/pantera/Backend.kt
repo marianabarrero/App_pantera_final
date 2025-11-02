@@ -89,10 +89,10 @@ object Constants {
     // ⭐ AGREGAR ESTA FUNCIÓN ⭐
     fun getVideoServerUrls(): List<String> {
         return listOf(
-            "wss://$SERVER_IP_1:$WEBRTC_PORT",
-            "wss://$SERVER_IP_2:$WEBRTC_PORT",
-            "wss://$SERVER_IP_3:$WEBRTC_PORT",
-            "wss://$SERVER_IP_4:$WEBRTC_PORT"
+            "wss://panteratracker.me:$WEBRTC_PORT",      // Servidor 1 (Juls)
+            "wss://panteratracker.tech:$WEBRTC_PORT",    // Servidor 2 (Nana)
+            "wss://panteratracker.site:$WEBRTC_PORT",    // Servidor 3 (Samir)
+            "wss://panteratracker.online:$WEBRTC_PORT"   // Servidor 4 (Roger)
         )
     }
 }
