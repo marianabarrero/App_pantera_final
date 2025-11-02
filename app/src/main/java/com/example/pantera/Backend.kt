@@ -37,7 +37,7 @@ object Constants {
     // Puertos
     const val TCP_PORT = 5000
     const val UDP_PORT = 6001
-    const val WEBRTC_PORT = 8443
+    const val WEBRTC_PORT = 8081
 
     const val LOCATION_UPDATE_INTERVAL = 8000L
     const val LOCATION_FASTEST_INTERVAL = 8000L
@@ -89,10 +89,10 @@ object Constants {
     // ⭐ AGREGAR ESTA FUNCIÓN ⭐
     fun getVideoServerUrls(): List<String> {
         return listOf(
-            "wss://panteratracker.me:$WEBRTC_PORT",      // Servidor 1 (Juls)
-            "wss://panteratracker.tech:$WEBRTC_PORT",    // Servidor 2 (Nana)
-            "wss://panteratracker.site:$WEBRTC_PORT",    // Servidor 3 (Samir)
-            "wss://panteratracker.online:$WEBRTC_PORT"   // Servidor 4 (Roger)
+            "ws://panteratracker.me:$WEBRTC_PORT",      // Servidor 1 (Juls)
+            "ws://panteratracker.tech:$WEBRTC_PORT",    // Servidor 2 (Nana)
+            "ws://panteratracker.site:$WEBRTC_PORT",    // Servidor 3 (Samir)
+            "ws://panteratracker.online:$WEBRTC_PORT"   // Servidor 4 (Roger)
         )
     }
 }
