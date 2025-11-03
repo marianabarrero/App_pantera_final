@@ -86,13 +86,13 @@ object Constants {
         const val TAG_VIDEO = "Pantera_Video"
     }
 
-    // ⭐ AGREGAR ESTA FUNCIÓN ⭐
+    // ⭐ FUNCIÓN CORREGIDA ⭐
     fun getVideoServerUrls(): List<String> {
         return listOf(
-            "ws://panteratracker.me:$WEBRTC_PORT",      // Servidor 1 (Juls)
-            "ws://panteratracker.tech:$WEBRTC_PORT",    // Servidor 2 (Nana)
-            "ws://panteratracker.site:$WEBRTC_PORT",    // Servidor 3 (Samir)
-            "ws://panteratracker.online:$WEBRTC_PORT"   // Servidor 4 (Roger)
+            "https://panteratracker.tech",    // 🔥 CAMBIADO: Ahora usa HTTPS sin puerto
+            "https://panteratracker.me",      // Otros servidores (si existen)
+            "https://panteratracker.site",
+            "https://panteratracker.online"
         )
     }
 }
