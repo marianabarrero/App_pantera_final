@@ -190,7 +190,7 @@ class VideoStreamingClient(
             Log.d(TAG, "📩 Answer SDP recibido")
             try {
                 val data = args[0] as JSONObject
-                val senderId = data.optString("sender") // El backend debe incluir esto
+                val senderId = data.optString("sender")
                 val sdpData = data.getJSONObject("sdp")
                 val sdpDescription = sdpData.getString("sdp")
 
@@ -203,7 +203,6 @@ class VideoStreamingClient(
                 val peerConnection = if (senderId.isNotEmpty()) {
                     peerConnections[senderId]
                 } else {
-                    // Fallback: usar la última conexión creada
                     peerConnections.values.lastOrNull()
                 }
 
@@ -218,7 +217,7 @@ class VideoStreamingClient(
             Log.d(TAG, "🧊 Candidato ICE recibido")
             try {
                 val data = args[0] as JSONObject
-                val senderId = data.optString("sender") // El backend debe incluir esto
+                val senderId = data.optString("sender")
                 val candidateData = data.getJSONObject("candidate")
 
                 val candidate = IceCandidate(
@@ -231,7 +230,6 @@ class VideoStreamingClient(
                 val peerConnection = if (senderId.isNotEmpty()) {
                     peerConnections[senderId]
                 } else {
-                    // Fallback: añadir a todas las conexiones activas
                     peerConnections.values.forEach { it.addIceCandidate(candidate) }
                     null
                 }
@@ -259,7 +257,7 @@ class VideoStreamingClient(
         }
     }
 
-    // ⭐ NUEVO: Método para crear una conexión para un viewer específico ⭐
+    // ⭐ NUEVO: Método mejorado con delays ⭐
     private fun createPeerConnectionForViewer(viewerId: String) {
         // Si ya existe una conexión para este viewer, cerrarla primero
         if (peerConnections.containsKey(viewerId)) {
@@ -268,7 +266,16 @@ class VideoStreamingClient(
             peerConnections.remove(viewerId)
         }
 
+        // ⭐ Usar Handler para crear la conexión con un pequeño delay ⭐
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            createPeerConnectionForViewerInternal(viewerId)
+        }, 200) // 200ms de delay
+    }
+
+    // ⭐ NUEVO: Método interno para crear la conexión ⭐
+    private fun createPeerConnectionForViewerInternal(viewerId: String) {
         Log.d(TAG, "🔧 Inicializando PeerConnection para viewer: $viewerId")
+        Log.d(TAG, "📊 Conexiones activas antes de crear nueva: ${peerConnections.size}")
 
         try {
             // Configuración de ICE Servers (STUN)
@@ -296,6 +303,7 @@ class VideoStreamingClient(
 
             peerConnections[viewerId] = peerConnection
             Log.d(TAG, "✅ PeerConnection creada para viewer $viewerId")
+            Log.d(TAG, "📊 Total de conexiones activas: ${peerConnections.size}")
 
             // ⭐ IMPORTANTE: Inicializar recursos de video solo una vez ⭐
             initializeVideoResourcesIfNeeded()
@@ -305,8 +313,10 @@ class VideoStreamingClient(
             peerConnection.addTrack(videoTrack, listOf(streamId))
             Log.d(TAG, "✅ Track de video añadido a PeerConnection para $viewerId")
 
-            // ⭐ Crear OFFER para este viewer específico ⭐
-            createOfferForViewer(viewerId)
+            // ⭐ Crear OFFER para este viewer específico con un delay adicional ⭐
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                createOfferForViewer(viewerId)
+            }, 100)
 
         } catch (e: Exception) {
             Log.e(TAG, "❌ Error inicializando PeerConnection para $viewerId: ${e.message}", e)
@@ -315,7 +325,6 @@ class VideoStreamingClient(
 
     // ⭐ NUEVO: Inicializar recursos de video solo una vez ⭐
     private fun initializeVideoResourcesIfNeeded() {
-        // Inicializar helper de textura y capturador de video
         if (surfaceTextureHelper == null) {
             surfaceTextureHelper = SurfaceTextureHelper.create("VideoCapturerThread", eglBaseContext)
             Log.d(TAG, "✅ SurfaceTextureHelper creado")
@@ -331,13 +340,11 @@ class VideoStreamingClient(
             Log.d(TAG, "✅ CameraVideoCapturer creado")
         }
 
-        // Crear fuente de video y track
         if (videoSource == null) {
             videoSource = peerConnectionFactory.createVideoSource(videoCapturer!!.isScreencast)
             videoTrack = peerConnectionFactory.createVideoTrack(VIDEO_TRACK_ID, videoSource)
             Log.d(TAG, "✅ VideoSource y VideoTrack creados")
 
-            // Inicializar y arrancar capturador
             videoCapturer?.initialize(surfaceTextureHelper, context, videoSource!!.capturerObserver)
             videoCapturer?.startCapture(VIDEO_RESOLUTION_WIDTH, VIDEO_RESOLUTION_HEIGHT, VIDEO_FPS)
             Log.d(TAG, "✅ Captura de cámara iniciada: ${VIDEO_RESOLUTION_WIDTH}x${VIDEO_RESOLUTION_HEIGHT} @ ${VIDEO_FPS}fps")
@@ -362,21 +369,20 @@ class VideoStreamingClient(
 
         Log.d(TAG, "📱 Cámaras encontradas: ${deviceNames.size}")
 
-        // Intentar encontrar la cámara trasera
         for (deviceName in deviceNames) {
             if (enumerator.isBackFacing(deviceName)) {
                 Log.d(TAG, "✅ Usando cámara trasera: $deviceName")
                 return enumerator.createCapturer(deviceName, null)
             }
         }
-        // Si no, intentar encontrar la cámara frontal
+
         for (deviceName in deviceNames) {
             if (enumerator.isFrontFacing(deviceName)) {
                 Log.d(TAG, "✅ Usando cámara frontal: $deviceName")
                 return enumerator.createCapturer(deviceName, null)
             }
         }
-        // Si no, usar la primera cámara disponible
+
         if (deviceNames.isNotEmpty()) {
             Log.d(TAG, "✅ Usando primera cámara disponible: ${deviceNames[0]}")
             return enumerator.createCapturer(deviceNames[0], null)
@@ -392,7 +398,6 @@ class VideoStreamingClient(
         Log.d(TAG, "════════════════════════════════════════")
 
         try {
-            // ⭐ CAMBIO: Cerrar todas las PeerConnections ⭐
             peerConnections.forEach { (viewerId, pc) ->
                 Log.d(TAG, "🔌 Cerrando conexión para viewer: $viewerId")
                 pc.close()
