@@ -49,6 +49,13 @@
             </intent-filter>
         </activity>
 
+        <!-- ⭐ NUEVO: CameraPreviewActivity ⭐ -->
+        <activity
+            android:name=".CameraPreviewActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SMSLocationApp"
+            android:screenOrientation="portrait" />
+
         <service
             android:name=".LocationService"
             android:enabled="true"

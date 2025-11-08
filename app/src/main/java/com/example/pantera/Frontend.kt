@@ -1,7 +1,6 @@
 package com.example.pantera
 
 import android.Manifest
-import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.animation.*
@@ -54,7 +53,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material3.Icon
-
+import android.content.Intent
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 val Lightest = Color(0xFFF8FAFC)
 val LightBlueGray = Color(0xFF64748B)
@@ -892,16 +893,22 @@ private fun StatusMessages(
 @Composable
 fun CameraButton(backend: Backend) {
     val context = LocalContext.current
-    var hasCameraPermission by remember { mutableStateOf(false) }
+
+    // ⭐ Verificar si ya tiene permiso de cámara
+    val hasCameraPermission = ContextCompat.checkSelfPermission(
+        context,
+        Manifest.permission.CAMERA
+    ) == PackageManager.PERMISSION_GRANTED
 
     // Launcher para solicitar permiso
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        hasCameraPermission = isGranted
         if (isGranted) {
             Toast.makeText(context, "Permiso de cámara concedido ✓", Toast.LENGTH_SHORT).show()
-            // Aquí después agregaremos la lógica para abrir la cámara
+            // ⭐ Abrir CameraPreviewActivity
+            val intent = Intent(context, CameraPreviewActivity::class.java)
+            context.startActivity(intent)
         } else {
             Toast.makeText(context, "Permiso de cámara denegado ✗", Toast.LENGTH_SHORT).show()
         }
@@ -909,8 +916,14 @@ fun CameraButton(backend: Backend) {
 
     Button(
         onClick = {
-            // Solicitar permiso de cámara
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            if (hasCameraPermission) {
+                // ⭐ Si ya tiene permiso, abrir directamente
+                val intent = Intent(context, CameraPreviewActivity::class.java)
+                context.startActivity(intent)
+            } else {
+                // ⭐ Si no tiene permiso, solicitarlo
+                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
         },
         modifier = Modifier
             .fillMaxWidth()
@@ -927,7 +940,7 @@ fun CameraButton(backend: Backend) {
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = "Abrir Cámara",
+            text = "Abrir Cámara con YOLO",
             style = MaterialTheme.typography.titleMedium
         )
     }
